@@ -3,61 +3,50 @@ from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 from langchain.chat_models import ChatOpenAI
 
-# Function to initialize the chatbot
-def initialize_chatbot(api_key):
-    return ChatOpenAI(openai_api_key=api_key, model="gpt-4o-mini")
+# Initialize ChatOpenAI with the API key
+api_key = st.secrets["OpenAIKey"]
+model = "gpt-4o-mini"
+chatbot = ChatOpenAI(openai_api_key=api_key, model=model)
 
-# Function to create the classification chain
-def create_classification_chain(chatbot):
-    classification_template = """
-    Classify the feedback into one of the following categories:
-    1. "service_issue" - Negative feedback about the airline's services (e.g., lost luggage, poor service).
-    2. "external_factor" - Negative feedback due to reasons outside the airline's control (e.g., weather, airport issues).
-    3. "positive_experience" - Positive feedback about the airline.
+# Streamlit App Title
+st.title("Airline Feedback Form")
 
-    Respond with only: "service_issue", "external_factor", or "positive_experience".
+# Input field for user feedback
+user_feedback = st.text_input("Share your recent travel experience:", "")
 
-    Feedback:
-    {feedback}
-    """
-    classification_prompt = PromptTemplate(input_variables=["feedback"], template=classification_template)
-    return LLMChain(llm=chatbot, prompt=classification_prompt)
+# Feedback classification template
+classification_template = """
+Please classify the feedback into one of these categories:
+1. "service_issue" - Negative feedback about the airline's services (e.g., lost luggage, poor service).
+2. "external_factor" - Negative feedback due to reasons outside the airline's control (e.g., weather, airport issues).
+3. "positive_experience" - Positive feedback about the airline.
 
-# Function to classify feedback and generate response
-def classify_feedback(classification_chain, feedback):
+Respond with only: "service_issue", "external_factor", or "positive_experience".
+
+Feedback:
+{feedback}
+"""
+
+# Create a prompt template for classification
+classification_prompt = PromptTemplate(input_variables=["feedback"], template=classification_template)
+classification_chain = LLMChain(llm=chatbot, prompt=classification_prompt)
+
+# Predefined responses for each feedback type
+responses = {
+    "service_issue": "We are sorry to hear about your experience. Our customer service will contact you shortly.",
+    "external_factor": "We appreciate your understanding regarding issues beyond our control. Thank you!",
+    "positive_experience": "Thank you for your kind words! We are thrilled to hear you enjoyed your trip."
+}
+
+# Process feedback if provided
+if user_feedback:
     try:
-        category = classification_chain.run({"feedback": feedback})
-        return category
+        # Classify the feedback
+        feedback_category = classification_chain.run({"feedback": user_feedback})
+
+        # Get the appropriate response based on classification
+        response_text = responses.get(feedback_category, "We encountered an unexpected error in processing your feedback.")
+        st.write(response_text)
+        
     except Exception as e:
-        st.error(f"An error occurred during classification: {e}")
-        return None
-
-# Function to generate a response based on feedback category
-def get_response(category):
-    responses = {
-        "service_issue": "We are sorry to hear about your experience. Our customer service will contact you shortly.",
-        "external_factor": "We appreciate your understanding regarding issues beyond our control. Thank you!",
-        "positive_experience": "Thank you for your kind words! We are thrilled to hear you enjoyed your trip."
-    }
-    return responses.get(category, "We encountered an unexpected error in processing your feedback.")
-
-# Main function to run the Streamlit app
-def main():
-    st.title("Airline Feedback Form")
-    
-    api_key = st.secrets["OpenAIKey"]
-    chatbot = initialize_chatbot(api_key)
-    classification_chain = create_classification_chain(chatbot)
-
-    # Input field for user feedback
-    user_feedback = st.text_input("Share your recent travel experience:", "")
-
-    if user_feedback:
-        category = classify_feedback(classification_chain, user_feedback)
-        if category:
-            response_text = get_response(category)
-            st.write(response_text)
-
-# Run the app
-if __name__ == "__main__":
-    main()
+        st.error(f"An error occurred while processing your feedback: {e}")
